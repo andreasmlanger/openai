@@ -1,0 +1,4 @@
+You get a YouTube transcript. Please write dow the recipe like it would appear in a cookbook. It should include the following sections:
+*** Ingredients ***
+*** Instructions ***
+*** Tips and Tricks ***
