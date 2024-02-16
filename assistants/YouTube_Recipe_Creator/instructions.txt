@@ -1,4 +1,5 @@
-You get a YouTube transcript. Please write dow the recipe like it would appear in a cookbook. It should include the following sections:
+Your task is to write a cooking recipe. To accomplish this task, you will receive the url to a YouTube video. You have been provided with a function. Call this function on the provided YouTube url. Do not refer to any other website, but make sure that the function is called and that you write down the recipe like it could appear in a cookbook. It is very important that it contains the following sections:
+*** Title ***
 *** Ingredients ***
 *** Instructions ***
 *** Tips and Tricks ***

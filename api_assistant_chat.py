@@ -6,8 +6,8 @@ import streamlit as st
 from assistant import Assistant
 from utils import is_run_by_streamlit
 
-NAME = 'NanoTemper_Expert'
-# NAME = 'Science_Buddy'
+# NAME = 'NanoTemper_Expert'
+NAME = 'Science_Buddy'
 
 
 def main():

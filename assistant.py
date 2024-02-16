@@ -26,15 +26,10 @@ class Assistant:
         self.tools = [] if tools is None else tools
         self.tool_function = tool_function  # tuple of json and actual function object
         self.client = openai.OpenAI(api_key=OPENAI_API_KEY)
-        self.files_path = self.get_files_path()
+        self.files_path = os.path.join('assistants', name, 'files')
         self.instructions = self.load_instructions()
         self.assistant_id = self.get_assistant_id()
         self.check_for_new_files()
-
-    def get_files_path(self):
-        files_path = os.path.join('assistants', self.name, 'files')
-        os.makedirs(files_path, exist_ok=True)
-        return files_path
 
     def load_instructions(self):
         instructions_file = 'instructions.txt'
@@ -83,13 +78,15 @@ class Assistant:
         return load_json(name=self.name, version=V).get('files')
 
     def check_for_new_files(self):
-        file_names = [f['name'] for f in self.get_files()]
-        for file_name in os.listdir(self.files_path):
-            if file_name not in file_names:
-                self.create_file(file_name=file_name)
+        if os.path.exists(self.files_path):
+            existing_file_names = [f['name'] for f in self.get_files()]
+            for file_name in os.listdir(self.files_path):
+                if file_name not in existing_file_names:
+                    self.create_file(file_name=file_name)
 
     def create_file(self, file_name):
         print('Creating new OpenAI file (https://platform.openai.com/files)')
+        os.makedirs(self.files_path, exist_ok=True)  # make sure that folder for files exists
         file_path = os.path.join(self.files_path, file_name)
         file = self.client.files.create(
             file=open(file_path, 'rb'),
@@ -121,17 +118,15 @@ class Assistant:
         return input('Add message: ')
 
     def add_message_to_thread(self, content='', speech=False):
-        while True:
-            try:
-                self.client.beta.threads.messages.create(
-                    thread_id=self.get_thread_id(),
-                    role='user',
-                    content=content or self.get_content(speech),
-                )
-                break
-            except openai.BadRequestError:
-                self.create_thread()  # create a new thread if current one contains an uncompleted run
-        update_json(name=self.name, version=V, run_id=self.create_run())
+        try:
+            self.client.beta.threads.messages.create(
+                thread_id=self.get_thread_id(),
+                role='user',
+                content=content or self.get_content(speech),
+            )
+            update_json(name=self.name, version=V, run_id=self.create_run())
+        except openai.BadRequestError:
+            pass  # Run hasn't finished yet
 
     def create_run(self):
         run = self.client.beta.threads.runs.create(
@@ -154,11 +149,14 @@ class Assistant:
             elif run.status == 'requires_action':
                 print(' FUNCTION CALL ', end='')
                 output = self.call_tool_function(required_actions=run.required_action.submit_tool_outputs.model_dump())
-                self.client.beta.threads.runs.submit_tool_outputs(
-                    thread_id=self.get_thread_id(),
-                    run_id=run_id,
-                    tool_outputs=output,
-                )
+                try:
+                    self.client.beta.threads.runs.submit_tool_outputs(
+                        thread_id=self.get_thread_id(),
+                        run_id=run_id,
+                        tool_outputs=output,
+                    )
+                except openai.BadRequestError:
+                    pass
                 print('OK ', end='')
             time.sleep(5)  # pause for 5 seconds before next retrieval attempt
 
