@@ -13,10 +13,10 @@ from utils import load_json, update_json, get_speech, create_random_id
 load_dotenv()
 
 # Specify GPT version: 3 (3.5) or 4
-V = 3
+V = 4
 
 # Define GPT model and respective API key
-MODEL = 'gpt-4-turbo-preview' if V == 4 else 'gpt-3.5-turbo-1106'
+MODEL = 'gpt-4o' if V == 4 else 'gpt-3.5-turbo-1106'
 OPENAI_API_KEY = os.environ.get(f'OPENAI_API_KEY_{V}')
 
 
@@ -28,8 +28,9 @@ class Assistant:
         self.client = openai.OpenAI(api_key=OPENAI_API_KEY)
         self.files_path = os.path.join('assistants', name, 'files')
         self.instructions = self.load_instructions()
-        self.assistant_id = self.get_assistant_id()
         self.check_for_new_files()
+        self.vector_store_id = self.get_vector_store_id()
+        self.assistant_id = self.get_assistant_id()
 
     def load_instructions(self):
         instructions_file = 'instructions.txt'
@@ -45,6 +46,9 @@ class Assistant:
     def get_assistant_id(self):
         return load_json(name=self.name, version=V).get('assistant_id') or self.create_assistant()
 
+    def get_vector_store_id(self):
+        return load_json(name=self.name, version=V).get('vector_store_id') or self.create_vector_store()
+
     def create_assistant(self):
         print('Creating new OpenAI Assistant (https://platform.openai.com/assistants)')
         assistant = self.client.beta.assistants.create(
@@ -52,6 +56,7 @@ class Assistant:
             instructions=self.instructions,
             model=MODEL,
             tools=self.get_tools(),
+            tool_resources={'file_search': {'vector_store_ids': [self.vector_store_id]}}
         )
         update_json(name=self.name, version=V, assistant_id=assistant.id)
         print(f'Assistant with ID {assistant.id} created!')
@@ -59,8 +64,8 @@ class Assistant:
 
     def get_tools(self):
         tools = []
-        if 'retrieval' in self.tools:
-            tools.append({'type': 'retrieval'})  # retrieval can access uploaded files!
+        if 'file_search' in self.tools:
+            tools.append({'type': 'file_search'})  # file_search can access uploaded files!
         if 'function' in self.tools and self.tool_function is not None:
             tools.append({'type': 'function', 'function': self.tool_function[0]})
         return tools
@@ -94,12 +99,18 @@ class Assistant:
         )  # upload file to OpenAI embeddings
         print(f'{file_name} created!')
         update_json(name=self.name, version=V, files=self.get_files() + [{'id': file.id, 'name': file_name}])
-        self.client.beta.assistants.files.create(assistant_id=self.assistant_id, file_id=file.id)  # add to assistant
         return file.id
+
+    def create_vector_store(self):
+        print('Creating new VectorStore')
+        vector_store = self.client.beta.vector_stores.create(
+            file_ids=[f['id'] for f in self.get_files()]
+        )
+        update_json(name=self.name, version=V, vector_store_id=vector_store.id)
+        return vector_store.id
 
     def remove_all_files(self):
         for file in self.get_files():
-            self.client.beta.assistants.files.delete(assistant_id=self.assistant_id, file_id=file['id'])
             self.client.files.delete(file_id=file['id'])
             os.remove(os.path.join(self.files_path, file['name']))
             print(f"Deleted {file['name']}!")

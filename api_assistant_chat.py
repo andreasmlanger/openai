@@ -6,8 +6,10 @@ import streamlit as st
 from assistant import Assistant
 from utils import is_run_by_streamlit
 
-# NAME = 'NanoTemper_Expert'
-NAME = 'Science_Buddy'
+NAME = 'NanoTemper_Expert'
+# NAME = 'Science_Buddy'
+
+SPEECH = False
 
 
 def main():
@@ -79,12 +81,11 @@ def main():
 
 
 def main_console():
-    speech = True
-    assistant = Assistant(name=NAME, tools=['retrieval'])
+    assistant = Assistant(name=NAME, tools=[{'type': 'file_search'}])
     while True:
-        assistant.add_message_to_thread(speech=speech)
+        assistant.add_message_to_thread(speech=SPEECH)
         assistant.wait_for_run_completion()
-        assistant.get_response(speech=speech)
+        assistant.get_response(speech=SPEECH)
 
 
 if __name__ == '__main__':
